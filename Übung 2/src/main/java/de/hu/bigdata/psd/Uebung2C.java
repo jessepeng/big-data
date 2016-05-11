@@ -1,12 +1,15 @@
 package de.hu.bigdata.psd;
 
+import org.apache.flink.api.common.functions.JoinFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.aggregation.Aggregations;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 
+import java.io.Serializable;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -71,25 +74,25 @@ public class Uebung2C {
 	/**
 	 * Splitter für die Order-Tabelle
 	 */
-	private static final class OrderSplitter extends Tuple2Splitter<Long, Character> {
+	private static final class OrderSplitter extends Tuple2Splitter<Long, Character> implements Serializable {
 		private static final int ORDER_KEY_POSITION = 0;
 		private static final int ORDER_STATUS_POSITION = 2;
 
 		OrderSplitter() {
-			super("|", ORDER_KEY_POSITION, ORDER_STATUS_POSITION, Long::parseLong, value -> value.charAt(0));
+			super("|", ORDER_KEY_POSITION, ORDER_STATUS_POSITION, (Function<String, Long> & Serializable) Long::parseLong, (Function<String, Character> & Serializable) value -> value.charAt(0));
 		}
 	}
 
 	/**
 	 * Splitter für die Lineitems-Tabelle
 	 */
-	private static final class LineItemsSplitter extends Tuple3Splitter<Long, Double, Date> {
+	private static final class LineItemsSplitter extends Tuple3Splitter<Long, Double, Date> implements Serializable {
 		private static final int ORDER_KEY_POSITION = 0;
 		private static final int EXTENDED_PRICE_POSITION = 5;
 		private static final int SHIPDATE_POSITION = 10;
 
 		LineItemsSplitter() {
-			super("|", ORDER_KEY_POSITION, EXTENDED_PRICE_POSITION, SHIPDATE_POSITION, Long::parseLong, Double::parseDouble, value -> {
+			super("|", ORDER_KEY_POSITION, EXTENDED_PRICE_POSITION, SHIPDATE_POSITION, (Function<String, Long> & Serializable) Long::parseLong, (Function<String, Double> & Serializable) Double::parseDouble, (Function<String, Date> & Serializable)(value) -> {
 				SimpleDateFormat lineItemsDateFormat = new SimpleDateFormat("yyyy-MM-dd");
 				try {
 					return lineItemsDateFormat.parse(value);
@@ -108,7 +111,7 @@ public class Uebung2C {
 	 * @param <T1>
 	 *     		Zweiter Typ des Tupels
      */
-	private static class Tuple2Splitter<T0, T1> implements MapFunction<String, Tuple2<T0, T1>> {
+	private static class Tuple2Splitter<T0, T1> implements MapFunction<String, Tuple2<T0, T1>>, Serializable {
 
 		private final int index1;
 		private final int index2;
@@ -153,7 +156,7 @@ public class Uebung2C {
 	 * @param <T2>
 	 *     		Dritter Typ des Tupels
 	 */
-	private static class Tuple3Splitter<T0, T1, T2> implements MapFunction<String, Tuple3<T0, T1, T2>> {
+	private static class Tuple3Splitter<T0, T1, T2> implements MapFunction<String, Tuple3<T0, T1, T2>>, Serializable {
 
 		private final int index1;
 		private final int index2;
