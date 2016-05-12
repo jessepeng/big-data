@@ -1,0 +1,7 @@
+1. Version:
+
+Argumente: "file:///F:/Uni/Big Data/data/orders.tbl" "file:///F:/Uni/Big Data/data/lineitem.tbl" O 1995-01-01 1997-01-01
+
+Mit einem Slot: 6m23s
+Mit zwei Slots: 4m8s
+Mit drei Slots: 3m11s
