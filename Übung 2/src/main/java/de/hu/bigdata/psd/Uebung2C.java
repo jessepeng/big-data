@@ -1,13 +1,11 @@
 package de.hu.bigdata.psd;
 
-import org.apache.flink.api.common.functions.JoinFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.aggregation.Aggregations;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
-import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 
 import java.io.Serializable;
 import java.text.ParseException;
@@ -56,12 +54,12 @@ public class Uebung2C {
 	/**
 	 * Eigentlicher Ausführungsgraph
      */
-	private static DataSet<Tuple2<Long, Double>> sumOrders(String ordersPfad, String lineitemsPfad, Character orderStatusFilter, Date finalShipDateToFilter, Date finalShipDateAfterFrom, ExecutionEnvironment env) {
+	private static DataSet<Tuple2<Long, Double>> sumOrders(String ordersPfad, String lineitemsPfad, Character orderStatusFilter, Date finalShipDateToFilter, Date finalShipDateFromFilter, ExecutionEnvironment env) {
 		DataSet<Tuple2<Long, Character>> orders = env.readTextFile(ordersPfad).map(new OrderSplitter());
 		DataSet<Tuple3<Long, Double, Date>> lineItems = env.readTextFile(lineitemsPfad).map(new LineItemsSplitter());
 		DataSet<Tuple2<Long, Character>> filteredOrders = orders.filter(tuple -> tuple.f1.equals(orderStatusFilter));
-		DataSet<Tuple3<Long, Double, Date>> filteredLineItems = lineItems.filter(tuple -> tuple.f2.before(finalShipDateToFilter) && !tuple.f2.before(finalShipDateAfterFrom));
-		DataSet<Tuple2<Long, Double>> joinedOrders = filteredOrders.joinWithHuge(filteredLineItems).where(0).equalTo(0).with((tuple1, tuple2) -> new Tuple2<>(tuple1.f0, tuple2.f1));
+		DataSet<Tuple3<Long, Double, Date>> filteredLineItems = lineItems.filter(tuple -> tuple.f2.before(finalShipDateToFilter) && !tuple.f2.before(finalShipDateFromFilter));
+		DataSet<Tuple2<Long, Double>> joinedOrders = filteredOrders.joinWithHuge(filteredLineItems).where(0).equalTo(0).with((tuple1, tuple2) -> new Tuple2<Long, Double>(tuple1.f0, tuple2.f1));
 		return joinedOrders.groupBy(0).aggregate(Aggregations.SUM, 1);
 	}
 
@@ -79,7 +77,7 @@ public class Uebung2C {
 		private static final int ORDER_STATUS_POSITION = 2;
 
 		OrderSplitter() {
-			super("|", ORDER_KEY_POSITION, ORDER_STATUS_POSITION, (Function<String, Long> & Serializable) Long::parseLong, (Function<String, Character> & Serializable) value -> value.charAt(0));
+			super("\\|", ORDER_KEY_POSITION, ORDER_STATUS_POSITION, (Function<String, Long> & Serializable) Long::parseLong, (Function<String, Character> & Serializable) value -> value.charAt(0));
 		}
 	}
 
@@ -92,7 +90,7 @@ public class Uebung2C {
 		private static final int SHIPDATE_POSITION = 10;
 
 		LineItemsSplitter() {
-			super("|", ORDER_KEY_POSITION, EXTENDED_PRICE_POSITION, SHIPDATE_POSITION, (Function<String, Long> & Serializable) Long::parseLong, (Function<String, Double> & Serializable) Double::parseDouble, (Function<String, Date> & Serializable)(value) -> {
+			super("\\|", ORDER_KEY_POSITION, EXTENDED_PRICE_POSITION, SHIPDATE_POSITION, (Function<String, Long> & Serializable) Long::parseLong, (Function<String, Double> & Serializable) Double::parseDouble, (Function<String, Date> & Serializable)(value) -> {
 				SimpleDateFormat lineItemsDateFormat = new SimpleDateFormat("yyyy-MM-dd");
 				try {
 					return lineItemsDateFormat.parse(value);

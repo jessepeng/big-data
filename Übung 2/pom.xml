@@ -161,10 +161,10 @@ under the License.
 						</goals>
 						<configuration>
 							<artifactSet>
-								<excludes>
-									<!-- This list contains all dependencies of flink-dist
+								<!--<excludes>
+									&lt;!&ndash; This list contains all dependencies of flink-dist
 									Everything else will be packaged into the fat-jar
-									-->
+									&ndash;&gt;
 									<exclude>org.apache.flink:flink-annotations</exclude>
 									<exclude>org.apache.flink:flink-shaded-hadoop1</exclude>
 									<exclude>org.apache.flink:flink-shaded-hadoop2</exclude>
@@ -180,12 +180,12 @@ under the License.
 									<exclude>org.apache.flink:flink-examples-streaming_2.10</exclude>
 									<exclude>org.apache.flink:flink-streaming-java_2.10</exclude>
 
-									<!-- Also exclude very big transitive dependencies of Flink
+									&lt;!&ndash; Also exclude very big transitive dependencies of Flink
 
 									WARNING: You have to remove these excludes if your code relies on other
 									versions of these dependencies.
 
-									-->
+									&ndash;&gt;
 									<exclude>org.scala-lang:scala-library</exclude>
 									<exclude>org.scala-lang:scala-compiler</exclude>
 									<exclude>org.scala-lang:scala-reflect</exclude>
@@ -234,17 +234,17 @@ under the License.
 									<exclude>com.github.scopt:scopt_*</exclude>
 									<exclude>commons-io:commons-io</exclude>
 									<exclude>commons-cli:commons-cli</exclude>
-								</excludes>
+								</excludes>-->
 							</artifactSet>
 							<filters>
-								<filter>
-									<artifact>org.apache.flink:*</artifact>
-									<excludes>
-										<!-- exclude shaded google but include shaded curator -->
-										<exclude>org/apache/flink/shaded/com/**</exclude>
-										<exclude>web-docs/**</exclude>
-									</excludes>
-								</filter>
+								<!--<filter>-->
+									<!--<artifact>org.apache.flink:*</artifact>-->
+									<!--<excludes>-->
+										<!--&lt;!&ndash; exclude shaded google but include shaded curator &ndash;&gt;-->
+										<!--<exclude>org/apache/flink/shaded/com/**</exclude>-->
+										<!--<exclude>web-docs/**</exclude>-->
+									<!--</excludes>-->
+								<!--</filter>-->
 								<filter>
 									<!-- Do not copy the signatures in the META-INF folder.
 									Otherwise, this might cause SecurityExceptions when using the JAR. -->
@@ -267,7 +267,6 @@ under the License.
 					</execution>
 				</executions>
 			</plugin>
-
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
@@ -278,8 +277,8 @@ under the License.
 				</configuration>
 			</plugin>
 		</plugins>
-		
-			
+
+
 		<!-- If you want to use Java 8 Lambda Expressions uncomment the following lines -->
 
 		<pluginManagement>
@@ -299,48 +298,9 @@ under the License.
 						</dependency>
 					</dependencies>
 				</plugin>
-		
-				<plugin>
-					<groupId>org.eclipse.m2e</groupId>
-					<artifactId>lifecycle-mapping</artifactId>
-					<version>1.0.0</version>
-					<configuration>
-						<lifecycleMappingMetadata>
-							<pluginExecutions>
-								<pluginExecution>
-									<pluginExecutionFilter>
-										<groupId>org.apache.maven.plugins</groupId>
-										<artifactId>maven-assembly-plugin</artifactId>
-										<versionRange>[2.4,)</versionRange>
-										<goals>
-											<goal>single</goal>
-										</goals>
-									</pluginExecutionFilter>
-									<action>
-										<ignore/>
-									</action>
-								</pluginExecution>
-								<pluginExecution>
-									<pluginExecutionFilter>
-										<groupId>org.apache.maven.plugins</groupId>
-										<artifactId>maven-compiler-plugin</artifactId>
-										<versionRange>[3.1,)</versionRange>
-										<goals>
-											<goal>testCompile</goal>
-											<goal>compile</goal>
-										</goals>
-									</pluginExecutionFilter>
-									<action>
-										<ignore/>
-									</action>
-								</pluginExecution>
-							</pluginExecutions>
-						</lifecycleMappingMetadata>
-					</configuration>
-				</plugin>
 			</plugins>
 		</pluginManagement>
 
-		
+
 	</build>
 </project>
