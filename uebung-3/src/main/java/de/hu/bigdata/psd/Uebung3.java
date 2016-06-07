@@ -11,95 +11,38 @@ import java.io.Serializable;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Function;
 
 public class Uebung3 {
 
-	private static DateFormat dateFormat = new DateFormat();
-
 	public static void main(String[] args) throws Exception {
-		if (args.length != 5) {
-			System.err.println("Nutzung: Uebung3 <Pfad zur Orders.tbl> <Pfad zur Lineitems.tbl> <Orderstatus-Filter> <Shipdate-Filter Von im Format \"YYYY-MM-DD\"> <Shipdate-Filter Bis im Format \"YYYY-MM-DD\">");
+		if (args.length != 2) {
+			System.err.println("Nutzung: Uebung3 <Pfad zur Datendatei> <min-supp>");
 			System.exit(-1);
 		}
 
 		String ordersPfad = args[0];
-		String lineitemsPfad = args[1];
-		Character orderStatusFilter = args[2].charAt(0);
-		String shipDateFromFilterString = args[3];
-		String shipDateToFilterString = args[4];
-		Date shipDateToFilter = null;
-		Date shipDateFromFilter = null;
-		try {
-			shipDateToFilter = dateFormat.parse(shipDateToFilterString);
-			shipDateFromFilter = dateFormat.parse(shipDateFromFilterString);
-		} catch (ParseException e) {
-			System.err.println("Nutzung: Uebung3 <Pfad zur Orders.tbl> <Pfad zur Lineitems.tbl> <Orderstatus-Filter> <Shipdate-Filter Von im Format \"YYYY-MM-DD\"> <Shipdate-Filter Bis im Format \"YYYY-MM-DD\">");
-			System.exit(-1);
-		}
-		final Date finalShipDateToFilter = shipDateToFilter;
-		final Date finalShipDateFromFilter = shipDateFromFilter;
+		float minSupport = Float.parseFloat(args[1]);
 
 		// set up the execution environment
 		final ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 
-		DataSet<Tuple2<Long, Double>> summedOrders = sumOrders(ordersPfad, lineitemsPfad, orderStatusFilter, finalShipDateToFilter, finalShipDateFromFilter, env);
+		DataSet<Tuple2<Integer, Integer>> basketItems = env.readCsvFile(ordersPfad).fieldDelimiter("\t").types(Integer.class, Integer.class);
+		DataSet<Set<Integer>> baskets = basketItems.groupBy(0).reduceGroup((values, out) -> {
+			Set<Integer> itemSet = new HashSet<>();
+			for (Tuple2<Integer, Integer> tuple: values) {
+				itemSet.add(tuple.f1);
+			}
+			out.collect(itemSet);
+		});
+		DataSet<Tuple2<Integer, Integer>> itemCount = basketItems.groupBy(1).aggregate(Aggregations.SUM, 1);
 
-		summedOrders.print();
+		baskets.print();
 
 		// execute program
-		env.execute("Team PSD Übung 2c");
-	}
-
-	/**
-	 * Eigentlicher Ausführungsgraph
-     */
-	private static DataSet<Tuple2<Long, Double>> sumOrders(String ordersPfad, String lineitemsPfad, Character orderStatusFilter, Date finalShipDateToFilter, Date finalShipDateFromFilter, ExecutionEnvironment env) {
-		DataSet<Tuple2<Long, Character>> orders = env.readTextFile(ordersPfad).map(new OrderSplitter());
-		DataSet<Tuple3<Long, Double, Date>> lineItems = env.readTextFile(lineitemsPfad).map(new LineItemsSplitter());
-		DataSet<Tuple2<Long, Character>> filteredOrders = orders.filter(tuple -> tuple.f1.equals(orderStatusFilter));
-		DataSet<Tuple3<Long, Double, Date>> filteredLineItems = lineItems.filter(tuple -> tuple.f2.before(finalShipDateToFilter) && !tuple.f2.before(finalShipDateFromFilter));
-		DataSet<Tuple2<Long, Double>> joinedOrders = filteredOrders.joinWithHuge(filteredLineItems).where(0).equalTo(0).with((tuple1, tuple2) -> new Tuple2<Long, Double>(tuple1.f0, tuple2.f1));
-		return joinedOrders.groupBy(0).aggregate(Aggregations.SUM, 1);
-	}
-
-	private static final class DateFormat extends SimpleDateFormat {
-		DateFormat() {
-			super("yyyy-MM-dd");
-		}
-	}
-
-	/**
-	 * Splitter für die Order-Tabelle
-	 */
-	private static final class OrderSplitter extends Tuple2Splitter<Long, Character> implements Serializable {
-		private static final int ORDER_KEY_POSITION = 0;
-		private static final int ORDER_STATUS_POSITION = 2;
-
-		OrderSplitter() {
-			super("\\|", ORDER_KEY_POSITION, ORDER_STATUS_POSITION, (Function<String, Long> & Serializable) Long::parseLong, (Function<String, Character> & Serializable) value -> value.charAt(0));
-		}
-	}
-
-	/**
-	 * Splitter für die Lineitems-Tabelle
-	 */
-	private static final class LineItemsSplitter extends Tuple3Splitter<Long, Double, Date> implements Serializable {
-		private static final int ORDER_KEY_POSITION = 0;
-		private static final int EXTENDED_PRICE_POSITION = 5;
-		private static final int SHIPDATE_POSITION = 10;
-
-		LineItemsSplitter() {
-			super("\\|", ORDER_KEY_POSITION, EXTENDED_PRICE_POSITION, SHIPDATE_POSITION, (Function<String, Long> & Serializable) Long::parseLong, (Function<String, Double> & Serializable) Double::parseDouble, (Function<String, Date> & Serializable)(value) -> {
-				SimpleDateFormat lineItemsDateFormat = new SimpleDateFormat("yyyy-MM-dd");
-				try {
-					return lineItemsDateFormat.parse(value);
-				} catch (ParseException e) {
-					return new Date();
-				}
-			});
-		}
-
+		env.execute("Team PSD Übung 3");
 	}
 
 	/**
