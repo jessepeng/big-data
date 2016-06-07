@@ -4,15 +4,15 @@ import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.aggregation.Aggregations;
+import org.apache.flink.api.java.operators.DeltaIteration;
+import org.apache.flink.api.java.tuple.Tuple1;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 
 import java.io.Serializable;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 
 public class Uebung3 {
@@ -30,19 +30,55 @@ public class Uebung3 {
 		final ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 
 		DataSet<Tuple2<Integer, Integer>> basketItems = env.readCsvFile(ordersPfad).fieldDelimiter("\t").types(Integer.class, Integer.class);
-		DataSet<Set<Integer>> baskets = basketItems.groupBy(0).reduceGroup((values, out) -> {
-			Set<Integer> itemSet = new HashSet<>();
+		DataSet<Tuple1<List<Integer>>> baskets = basketItems.groupBy(0).reduceGroup((values, out) -> {
+			List<Integer> itemSet = new LinkedList<Integer>();
 			for (Tuple2<Integer, Integer> tuple: values) {
 				itemSet.add(tuple.f1);
 			}
-			out.collect(itemSet);
+			out.collect(new Tuple1<List<Integer>>(itemSet));
 		});
-		DataSet<Tuple2<Integer, Integer>> itemCount = basketItems.groupBy(1).aggregate(Aggregations.SUM, 1);
 
-		baskets.print();
+		DataSet<Tuple2<Integer, Integer>> itemCount = basketItems.groupBy(1).sum(1);
+		long basketCount = baskets.count();
+		long itemNo = itemCount.count();
+		double minCount = basketCount * minSupport;
+
+		DataSet<Tuple1<List<Integer>>> freq1ItemSets = itemCount.filter(tuple -> tuple.f1 >= minCount).map(tuple -> {
+			List<Integer> list = new LinkedList<Integer>();
+			list.add(tuple.f0);
+			return new Tuple1<List<Integer>>(list);
+		});
+
+		DeltaIteration<Tuple1<List<Integer>>, Tuple1<List<Integer>>> iteration = freq1ItemSets.iterateDelta(freq1ItemSets, (int)itemNo, 0);
+
+		DataSet<Tuple1<List<Integer>>> candidateSet = aprioriGen(iteration.getWorkset());
+
+		DataSet<Tuple1<List<Integer>>> delta = candidateSet.filter((tuple) -> true);
+
+		iteration.closeWith(delta, delta).print();
 
 		// execute program
 		env.execute("Team PSD Übung 3");
+	}
+
+	private static DataSet<Tuple1<List<Integer>>> aprioriGen(DataSet<Tuple1<List<Integer>>> freqKItemSets) {
+		// Join Step
+		DataSet<Tuple1<List<Integer>>> resultSet = freqKItemSets.join(freqKItemSets).where((tuple) -> {
+			List<Integer> list = new LinkedList<Integer>(tuple.f0);
+			list.remove(list.size() - 1);
+			return list.toString();
+		}).equalTo((tuple) -> {
+			List<Integer> list = new LinkedList<Integer>(tuple.f0);
+			list.remove(list.size() - 1);
+			return list.toString();
+		}).filter(tuple -> tuple.f0.f0.get(tuple.f0.f0.size() - 1) < tuple.f1.f0.get(tuple.f1.f0.size() - 1)).map((tuple) -> {
+			List<Integer> candidateList = tuple.f0.f0;
+			candidateList.add(tuple.f1.f0.get(candidateList.size() - 1));
+			return new Tuple1<List<Integer>>(candidateList);
+		});
+		// Prune Step
+		
+		return resultSet;
 	}
 
 	/**
