@@ -1,5 +1,6 @@
 package de.hu.bigdata.psd;
 
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
@@ -57,9 +58,19 @@ public class Uebung3 {
 
 		DataSet<Tuple1<List<Integer>>> candidateSet = aprioriGen(iteration.getWorkset());
 
-		DataSet<Tuple1<List<Integer>>> delta = candidateSet.filter((tuple) -> {
-			return true;
-		});
+		//TODO: k rausfinden
+		int k = 0;
+		DataSet<Tuple2<String, Integer>> minSupportSubsets = baskets.flatMap((FlatMapFunction<Tuple1<List<Integer>>, Tuple2<String, Integer>>) (tuple, out) -> {
+			List<Integer> list = new LinkedList<Integer>(tuple.f0);
+			if (list.size() >= k) {
+				for (int i = 0; i <= k - 2; i++) {
+					list.remove(i);
+					out.collect(new Tuple2<String, Integer>(list.toString(), 1));
+				}
+			}
+		}).groupBy(0).sum(1).filter(tuple -> tuple.f1 >= minCount);
+
+		DataSet<Tuple1<List<Integer>>> delta = candidateSet.join(minSupportSubsets).where(tuple -> tuple.f0.toString()).equalTo(0).projectFirst(0);
 
 		iteration.closeWith(delta, delta).print();
 
@@ -83,6 +94,7 @@ public class Uebung3 {
 			return new Tuple1<List<Integer>>(candidateList);
 		});
 		// Prune Step
+		//TODO: collect hier in join oder ähnliches umbauen
 		DataSet<Tuple1<List<Integer>>> prunedSet = joinedSet.filter((tuple) -> {
 			List<Tuple1<List<Integer>>> collectedItemSets = freqKItemSets.collect();
 			List<Integer> list = new LinkedList<Integer>(tuple.f0);
