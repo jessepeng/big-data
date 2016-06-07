@@ -49,11 +49,17 @@ public class Uebung3 {
 			return new Tuple1<List<Integer>>(list);
 		});
 
+		List<Tuple1<List<Integer>>> collectedBaskets = baskets.collect();
+
+
+
 		DeltaIteration<Tuple1<List<Integer>>, Tuple1<List<Integer>>> iteration = freq1ItemSets.iterateDelta(freq1ItemSets, (int)itemNo, 0);
 
 		DataSet<Tuple1<List<Integer>>> candidateSet = aprioriGen(iteration.getWorkset());
 
-		DataSet<Tuple1<List<Integer>>> delta = candidateSet.filter((tuple) -> true);
+		DataSet<Tuple1<List<Integer>>> delta = candidateSet.filter((tuple) -> {
+			return true;
+		});
 
 		iteration.closeWith(delta, delta).print();
 
@@ -63,7 +69,7 @@ public class Uebung3 {
 
 	private static DataSet<Tuple1<List<Integer>>> aprioriGen(DataSet<Tuple1<List<Integer>>> freqKItemSets) {
 		// Join Step
-		DataSet<Tuple1<List<Integer>>> resultSet = freqKItemSets.join(freqKItemSets).where((tuple) -> {
+		DataSet<Tuple1<List<Integer>>> joinedSet = freqKItemSets.join(freqKItemSets).where((tuple) -> {
 			List<Integer> list = new LinkedList<Integer>(tuple.f0);
 			list.remove(list.size() - 1);
 			return list.toString();
@@ -77,8 +83,20 @@ public class Uebung3 {
 			return new Tuple1<List<Integer>>(candidateList);
 		});
 		// Prune Step
-		
-		return resultSet;
+		DataSet<Tuple1<List<Integer>>> prunedSet = joinedSet.filter((tuple) -> {
+			List<Tuple1<List<Integer>>> collectedItemSets = freqKItemSets.collect();
+			List<Integer> list = new LinkedList<Integer>(tuple.f0);
+			for (int i = 0; i <= tuple.f0.size() - 2; i++) {
+				list.remove(i);
+				for (Tuple1<List<Integer>> listTuple : collectedItemSets) {
+					if (!list.toString().equals(listTuple.toString())) {
+						return false;
+					}
+				}
+			}
+			return true;
+		});
+		return prunedSet;
 	}
 
 	/**
