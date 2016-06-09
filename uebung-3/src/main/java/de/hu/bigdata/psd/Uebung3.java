@@ -65,8 +65,10 @@ public class Uebung3 {
 		// Candidate Set: (List<Item ID>, k)
 		DataSet<Tuple2<List<Integer>, Integer>> candidateSet = aprioriGen(iteration.getWorkset());
 
+		// reduced: (null, k)
+		DataSet<Tuple2<List<Integer>, Integer>> reduced = candidateSet.reduce((value1, value2) -> new Tuple2<List<Integer>, Integer>(null, value1.f1));
 		// Min support subsets: (List<Item ID>, k)
-		DataSet<Tuple2<String, Integer>> minSupportSubsets = baskets.join(candidateSet).where(1).equalTo(1).with((tuple1, tuple2) -> new Tuple2<List<Integer>, Integer>(tuple1.f0, tuple1.f1)).flatMap((FlatMapFunction<Tuple2<List<Integer>, Integer>, Tuple2<String, Integer>>) (tuple, out) -> {
+		DataSet<Tuple2<String, Integer>> minSupportSubsets = baskets.join(reduced).where(tuple -> true).equalTo(tuple -> true).with((tuple1, tuple2) -> new Tuple2<List<Integer>, Integer>(tuple1.f0, tuple2.f1)).flatMap((FlatMapFunction<Tuple2<List<Integer>, Integer>, Tuple2<String, Integer>>) (tuple, out) -> {
 			int k = tuple.f1;
 			List<Integer> list = new LinkedList<Integer>(tuple.f0);
 			if (list.size() >= k) {
