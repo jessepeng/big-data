@@ -31,36 +31,34 @@ public class Uebung3 {
 		final ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 
 		DataSet<Tuple2<Integer, Integer>> basketItems = env.readCsvFile(ordersPfad).fieldDelimiter("\t").types(Integer.class, Integer.class);
-		DataSet<Tuple1<List<Integer>>> baskets = basketItems.groupBy(0).reduceGroup((values, out) -> {
+		DataSet<Tuple2<List<Integer>, Integer>> baskets = basketItems.groupBy(0).reduceGroup((values, out) -> {
 			List<Integer> itemSet = new LinkedList<Integer>();
+			int count = 0;
 			for (Tuple2<Integer, Integer> tuple: values) {
 				itemSet.add(tuple.f1);
+				count++;
 			}
-			out.collect(new Tuple1<List<Integer>>(itemSet));
+			out.collect(new Tuple2<List<Integer>, Integer>(itemSet, count));
 		});
 
-		DataSet<Tuple2<Integer, Integer>> itemCount = basketItems.groupBy(1).sum(1);
+		DataSet<Tuple2<Integer, Integer>> itemCount = basketItems.map(tuple -> new Tuple2<Integer, Integer>(tuple.f1, 1)).
+				groupBy(0).sum(1);
 		long basketCount = baskets.count();
 		long itemNo = itemCount.count();
 		double minCount = basketCount * minSupport;
 
-		DataSet<Tuple1<List<Integer>>> freq1ItemSets = itemCount.filter(tuple -> tuple.f1 >= minCount).map(tuple -> {
+		DataSet<Tuple2<List<Integer>, Integer>> freq1ItemSets = itemCount.filter(tuple -> tuple.f1 >= minCount).map(tuple -> {
 			List<Integer> list = new LinkedList<Integer>();
 			list.add(tuple.f0);
-			return new Tuple1<List<Integer>>(list);
+			return new Tuple2<List<Integer>, Integer>(list, 1);
 		});
 
-		List<Tuple1<List<Integer>>> collectedBaskets = baskets.collect();
+		DeltaIteration<Tuple2<List<Integer>, Integer>, Tuple2<List<Integer>, Integer>> iteration = freq1ItemSets.iterateDelta(freq1ItemSets, (int)itemNo, 0);
 
+		DataSet<Tuple2<List<Integer>, Integer>> candidateSet = aprioriGen(iteration.getWorkset());
 
-
-		DeltaIteration<Tuple1<List<Integer>>, Tuple1<List<Integer>>> iteration = freq1ItemSets.iterateDelta(freq1ItemSets, (int)itemNo, 0);
-
-		DataSet<Tuple1<List<Integer>>> candidateSet = aprioriGen(iteration.getWorkset());
-
-		//TODO: k rausfinden
-		int k = 0;
-		DataSet<Tuple2<String, Integer>> minSupportSubsets = baskets.flatMap((FlatMapFunction<Tuple1<List<Integer>>, Tuple2<String, Integer>>) (tuple, out) -> {
+		DataSet<Tuple2<String, Integer>> minSupportSubsets = baskets.join(candidateSet).where(1).equalTo(1).with((tuple1, tuple2) -> new Tuple2<List<Integer>, Integer>(tuple1.f0, tuple1.f1)).flatMap((FlatMapFunction<Tuple2<List<Integer>, Integer>, Tuple2<String, Integer>>) (tuple, out) -> {
+			int k = tuple.f1;
 			List<Integer> list = new LinkedList<Integer>(tuple.f0);
 			if (list.size() >= k) {
 				for (int i = 0; i <= k - 2; i++) {
@@ -70,7 +68,7 @@ public class Uebung3 {
 			}
 		}).groupBy(0).sum(1).filter(tuple -> tuple.f1 >= minCount);
 
-		DataSet<Tuple1<List<Integer>>> delta = candidateSet.join(minSupportSubsets).where(tuple -> tuple.f0.toString()).equalTo(0).projectFirst(0);
+		DataSet<Tuple2<List<Integer>, Integer>> delta = candidateSet.join(minSupportSubsets).where(tuple -> tuple.f0.toString()).equalTo(0).projectFirst(0);
 
 		iteration.closeWith(delta, delta).print();
 
@@ -78,9 +76,9 @@ public class Uebung3 {
 		env.execute("Team PSD Übung 3");
 	}
 
-	private static DataSet<Tuple1<List<Integer>>> aprioriGen(DataSet<Tuple1<List<Integer>>> freqKItemSets) {
+	private static DataSet<Tuple2<List<Integer>, Integer>> aprioriGen(DataSet<Tuple2<List<Integer>, Integer>> freqKItemSets) {
 		// Join Step
-		DataSet<Tuple1<List<Integer>>> joinedSet = freqKItemSets.join(freqKItemSets).where((tuple) -> {
+		DataSet<Tuple2<List<Integer>, Integer>> joinedSet = freqKItemSets.join(freqKItemSets).where((tuple) -> {
 			List<Integer> list = new LinkedList<Integer>(tuple.f0);
 			list.remove(list.size() - 1);
 			return list.toString();
@@ -91,16 +89,16 @@ public class Uebung3 {
 		}).filter(tuple -> tuple.f0.f0.get(tuple.f0.f0.size() - 1) < tuple.f1.f0.get(tuple.f1.f0.size() - 1)).map((tuple) -> {
 			List<Integer> candidateList = tuple.f0.f0;
 			candidateList.add(tuple.f1.f0.get(candidateList.size() - 1));
-			return new Tuple1<List<Integer>>(candidateList);
+			return new Tuple2<List<Integer>, Integer>(candidateList, tuple.f1.f1 + 1);
 		});
 		// Prune Step
 		//TODO: collect hier in join oder ähnliches umbauen
-		DataSet<Tuple1<List<Integer>>> prunedSet = joinedSet.filter((tuple) -> {
-			List<Tuple1<List<Integer>>> collectedItemSets = freqKItemSets.collect();
+		DataSet<Tuple2<List<Integer>, Integer>> prunedSet = joinedSet.filter((tuple) -> {
+			List<Tuple2<List<Integer>, Integer>> collectedItemSets = freqKItemSets.collect();
 			List<Integer> list = new LinkedList<Integer>(tuple.f0);
 			for (int i = 0; i <= tuple.f0.size() - 2; i++) {
 				list.remove(i);
-				for (Tuple1<List<Integer>> listTuple : collectedItemSets) {
+				for (Tuple2<List<Integer>, Integer> listTuple : collectedItemSets) {
 					if (!list.toString().equals(listTuple.toString())) {
 						return false;
 					}
@@ -109,101 +107,5 @@ public class Uebung3 {
 			return true;
 		});
 		return prunedSet;
-	}
-
-	/**
-	 * Generischer Splitter, der ein Zweier-Tupel aus einem String erzeugt
-	 * @param <T0>
-	 *     		Erster Typ des Tupels
-	 * @param <T1>
-	 *     		Zweiter Typ des Tupels
-     */
-	private static class Tuple2Splitter<T0, T1> implements MapFunction<String, Tuple2<T0, T1>>, Serializable {
-
-		private final int index1;
-		private final int index2;
-		private final String delimiter;
-		private final Function<String, T0> t0Parser;
-		private final Function<String, T1> t1Parser;
-
-		/**
-		 *
-		 * @param delimiter
-		 * 			Trennzeichen
-		 * @param index1
-		 * 			Index, an dem sich das erste Element des Tupels befindet
-		 * @param index2
-		 * 			Index, an dem sich das zweite Element des Tupels befindet
-		 * @param t0Parser
-		 * 			Funktion zum Parsen des ersten Elements
-         * @param t1Parser
-		 * 			Funktion zum Parsen des zweiten Elements
-         */
-		Tuple2Splitter(String delimiter, int index1, int index2, Function<String, T0> t0Parser, Function<String, T1> t1Parser) {
-			this.index1 = index1;
-			this.index2 = index2;
-			this.delimiter = delimiter;
-			this.t0Parser = t0Parser;
-			this.t1Parser = t1Parser;
-		}
-
-		@Override
-		public Tuple2<T0, T1> map(String s) throws Exception {
-			String[] array = s.split(delimiter);
-			return new Tuple2<>(t0Parser.apply(array[index1]), t1Parser.apply(array[index2]));
-		}
-	}
-
-	/**
-	 * Generischer Splitter, der ein Dreier-Tupel aus einem String erzeugt
-	 * @param <T0>
-	 *     		Erster Typ des Tupels
-	 * @param <T1>
-	 *     		Zweiter Typ des Tupels
-	 * @param <T2>
-	 *     		Dritter Typ des Tupels
-	 */
-	private static class Tuple3Splitter<T0, T1, T2> implements MapFunction<String, Tuple3<T0, T1, T2>>, Serializable {
-
-		private final int index1;
-		private final int index2;
-		private final int index3;
-		private final String delimiter;
-		private final Function<String, T0> t0Parser;
-		private final Function<String, T1> t1Parser;
-		private final Function<String, T2> t2Parser;
-
-		/**
-		 *
-		 * @param delimiter
-		 * 			Trennzeichen
-		 * @param index1
-		 * 			Index, an dem sich das erste Element des Tupels befindet
-		 * @param index2
-		 * 			Index, an dem sich das zweite Element des Tupels befindet
-		 * @param index3
-		 * 			Index, an dem sich das dritte Element des Tupels befindet
-		 * @param t0Parser
-		 * 			Funktion zum Parsen des ersten Elements
-		 * @param t1Parser
-		 * 			Funktion zum Parsen des zweiten Elements
-		 * @param t2Parser
-		 * 			Funktion zum Parsen des dritten Elements
-		 */
-		Tuple3Splitter(String delimiter, int index1, int index2, int index3, Function<String, T0> t0Parser, Function<String, T1> t1Parser, Function<String, T2> t2Parser) {
-			this.index1 = index1;
-			this.index2 = index2;
-			this.index3 = index3;
-			this.delimiter = delimiter;
-			this.t0Parser = t0Parser;
-			this.t1Parser = t1Parser;
-			this.t2Parser = t2Parser;
-		}
-
-		@Override
-		public Tuple3<T0, T1, T2> map(String s) throws Exception {
-			String[] array = s.split(delimiter);
-			return new Tuple3<>(t0Parser.apply(array[index1]), t1Parser.apply(array[index2]), t2Parser.apply(array[index3]));
-		}
 	}
 }
