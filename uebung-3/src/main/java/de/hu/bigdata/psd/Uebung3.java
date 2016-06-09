@@ -30,7 +30,9 @@ public class Uebung3 {
 		// set up the execution environment
 		final ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 
+		//Basket Items: (Basket ID, Item ID)
 		DataSet<Tuple2<Integer, Integer>> basketItems = env.readCsvFile(ordersPfad).fieldDelimiter("\t").types(Integer.class, Integer.class);
+		//Baskets: (List<Item ID>, Size of Basket)
 		DataSet<Tuple2<List<Integer>, Integer>> baskets = basketItems.groupBy(0).reduceGroup((values, out) -> {
 			List<Integer> itemSet = new LinkedList<Integer>();
 			int count = 0;
@@ -41,12 +43,17 @@ public class Uebung3 {
 			out.collect(new Tuple2<List<Integer>, Integer>(itemSet, count));
 		});
 
+		//Item count: (Item ID, Item Cound)
 		DataSet<Tuple2<Integer, Integer>> itemCount = basketItems.map(tuple -> new Tuple2<Integer, Integer>(tuple.f1, 1)).
 				groupBy(0).sum(1);
+		// Total no. of baskets
 		long basketCount = baskets.count();
+		// Total no. of items
 		long itemNo = itemCount.count();
+		// Min Count
 		double minCount = basketCount * minSupport;
 
+		// Freq 1 Itemsets: (List<Item ID>, k)
 		DataSet<Tuple2<List<Integer>, Integer>> freq1ItemSets = itemCount.filter(tuple -> tuple.f1 >= minCount).map(tuple -> {
 			List<Integer> list = new LinkedList<Integer>();
 			list.add(tuple.f0);
@@ -55,8 +62,10 @@ public class Uebung3 {
 
 		DeltaIteration<Tuple2<List<Integer>, Integer>, Tuple2<List<Integer>, Integer>> iteration = freq1ItemSets.iterateDelta(freq1ItemSets, (int)itemNo, 0);
 
+		// Candidate Set: (List<Item ID>, k)
 		DataSet<Tuple2<List<Integer>, Integer>> candidateSet = aprioriGen(iteration.getWorkset());
 
+		// Min support subsets: (List<Item ID>, k)
 		DataSet<Tuple2<String, Integer>> minSupportSubsets = baskets.join(candidateSet).where(1).equalTo(1).with((tuple1, tuple2) -> new Tuple2<List<Integer>, Integer>(tuple1.f0, tuple1.f1)).flatMap((FlatMapFunction<Tuple2<List<Integer>, Integer>, Tuple2<String, Integer>>) (tuple, out) -> {
 			int k = tuple.f1;
 			List<Integer> list = new LinkedList<Integer>(tuple.f0);
@@ -68,6 +77,7 @@ public class Uebung3 {
 			}
 		}).groupBy(0).sum(1).filter(tuple -> tuple.f1 >= minCount);
 
+		// Delta (k frequent itemsets): (List<Item ID>, k)
 		DataSet<Tuple2<List<Integer>, Integer>> delta = candidateSet.join(minSupportSubsets).where(tuple -> tuple.f0.toString()).equalTo(0).projectFirst(0);
 
 		iteration.closeWith(delta, delta).print();
