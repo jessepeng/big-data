@@ -80,7 +80,7 @@ public class Uebung3 {
 		}).groupBy(0).sum(1).filter(tuple -> tuple.f1 >= minCount);
 
 		// Delta (k frequent itemsets): (List<Item ID>, k)
-		DataSet<Tuple2<List<Integer>, Integer>> delta = candidateSet.join(minSupportSubsets).where(tuple -> tuple.f0.toString()).equalTo(0).projectFirst(0);
+		DataSet<Tuple2<List<Integer>, Integer>> delta = candidateSet.join(minSupportSubsets).where(tuple -> tuple.f0.toString()).equalTo(0).projectFirst(0, 1);
 
 		iteration.closeWith(delta, delta).print();
 
@@ -104,20 +104,16 @@ public class Uebung3 {
 			return new Tuple2<List<Integer>, Integer>(candidateList, tuple.f1.f1 + 1);
 		});
 		// Prune Step
-		//TODO: collect hier in join oder ähnliches umbauen
-		DataSet<Tuple2<List<Integer>, Integer>> prunedSet = joinedSet.filter((tuple) -> {
-			List<Tuple2<List<Integer>, Integer>> collectedItemSets = freqKItemSets.collect();
-			List<Integer> list = new LinkedList<Integer>(tuple.f0);
-			for (int i = 0; i <= tuple.f0.size() - 2; i++) {
+		DataSet<Tuple2<List<Integer>, Integer>> prunedSet = joinedSet.join(freqKItemSets).where(1).equalTo((tuple) -> tuple.f1 - 1).filter((tuple) -> {
+			List<Integer> list = new LinkedList<Integer>(tuple.f0.f0);
+			for (int i = 0; i <= tuple.f1.f0.size() - 2; i++) {
 				list.remove(i);
-				for (Tuple2<List<Integer>, Integer> listTuple : collectedItemSets) {
-					if (!list.toString().equals(listTuple.toString())) {
-						return false;
-					}
+				if (!list.toString().equals(tuple.f1.f0.toString())) {
+					return false;
 				}
 			}
 			return true;
-		});
+		}).map((tuple) -> new Tuple2<List<Integer>, Integer>(tuple.f0.f0, tuple.f0.f1));
 		return prunedSet;
 	}
 }
