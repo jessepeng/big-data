@@ -60,7 +60,7 @@ public class Uebung3 {
 			return new Tuple2<List<Integer>, Integer>(list, 1);
 		});
 
-		DeltaIteration<Tuple2<List<Integer>, Integer>, Tuple2<List<Integer>, Integer>> iteration = freq1ItemSets.iterateDelta(freq1ItemSets, (int)itemNo, 0);
+		DeltaIteration<Tuple2<List<Integer>, Integer>, Tuple2<List<Integer>, Integer>> iteration = freq1ItemSets.iterateDelta(freq1ItemSets, (int)itemNo, 1);
 
 		// Candidate Set: (List<Item ID>, k)
 		DataSet<Tuple2<List<Integer>, Integer>> candidateSet = aprioriGen(iteration.getWorkset());
